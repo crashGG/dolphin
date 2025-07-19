@@ -1,4 +1,4 @@
-add_library(core
+add_library(core STATIC
   AchievementApprovedHash.h
   AchievementManager.cpp
   AchievementManager.h
@@ -763,8 +763,9 @@ if(WIN32)
   target_link_libraries(core PUBLIC
     videod3d
     videod3d12
-    setupapi.lib
-    iphlpapi.lib
+    setupapi
+    Bthprops
+    Hid
   )
   target_compile_definitions(core PRIVATE "-D_WINSOCK_DEPRECATED_NO_WARNINGS")
 elseif(APPLE)
