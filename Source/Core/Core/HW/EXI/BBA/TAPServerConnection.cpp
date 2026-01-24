@@ -29,6 +29,7 @@ using ws_ssize_t = int;
 #else
 #define closesocket close
 using ws_ssize_t = ssize_t;
+#define SOCKET int
 #endif
 
 using Common::SEND_FLAGS;
@@ -249,7 +250,7 @@ void TAPServerConnection::ReadThreadHandler()
   {
     fd_set rfds;
     FD_ZERO(&rfds);
-    FD_SET(m_fd, &rfds);
+    FD_SET((SOCKET)m_fd, &rfds);
 
     timeval timeout;
     timeout.tv_sec = 0;
