@@ -1,4 +1,4 @@
-add_library(core
+add_library(core STATIC
   AchievementApprovedHash.h
   AchievementManager.cpp
   AchievementManager.h
@@ -763,8 +763,9 @@ if(WIN32)
   target_link_libraries(core PUBLIC
     videod3d
     videod3d12
-    setupapi.lib
-    iphlpapi.lib
+    setupapi
+    Bthprops
+    Hid
   )
   target_compile_definitions(core PRIVATE "-D_WINSOCK_DEPRECATED_NO_WARNINGS")
 elseif(APPLE)
@@ -835,6 +836,10 @@ endif()
 if(MSVC)
   # Add precompiled header
   target_link_libraries(core PRIVATE use_pch)
+endif()
+
+if(USE_ASAN)
+  set_source_files_properties(MemTools.cpp PROPERTIES COMPILE_DEFINITIONS USE_ASAN)
 endif()
 
 if(USE_RETRO_ACHIEVEMENTS)

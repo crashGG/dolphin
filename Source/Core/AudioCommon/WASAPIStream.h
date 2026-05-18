@@ -9,6 +9,9 @@
 #include <Windows.h>
 #include <mmreg.h>
 #include <objbase.h>
+#ifdef __MINGW32__
+#include "Common/WILShim.h"
+#endif
 #include <wil/resource.h>
 // clang-format on
 
@@ -17,6 +20,7 @@
 #include <thread>
 #include <vector>
 #include <wrl/client.h>
+#endif
 
 #include "AudioCommon/SoundStream.h"
 
@@ -24,8 +28,6 @@ struct IAudioClient;
 struct IAudioRenderClient;
 struct IMMDevice;
 struct IMMDeviceEnumerator;
-
-#endif
 
 class WASAPIStream final : public SoundStream
 {

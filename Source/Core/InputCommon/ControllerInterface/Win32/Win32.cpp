@@ -16,7 +16,9 @@
 #include "InputCommon/ControllerInterface/WGInput/WGInput.h"
 #include "InputCommon/ControllerInterface/XInput/XInput.h"
 
+#ifdef _MSC_VER
 #pragma comment(lib, "OneCoreUAP.Lib")
+#endif
 
 // TODO is this really needed?
 static Common::Flag s_first_populate_devices_asked;
@@ -77,7 +79,9 @@ InputBackend::InputBackend(ControllerInterface* controller_interface)
     : ciface::InputBackend(controller_interface)
 {
   XInput::Init();
+#ifdef _MSC_VER
   WGInput::Init();
+#endif
 
   CM_NOTIFY_FILTER notify_filter{.cbSize = sizeof(notify_filter),
                                  .FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEINTERFACE,
@@ -96,7 +100,9 @@ void InputBackend::PopulateDevices()
     s_first_populate_devices_asked.Set();
     ciface::DInput::PopulateDevices(GetHWND());
     ciface::XInput::PopulateDevices();
+#ifdef _MSC_VER
     ciface::WGInput::PopulateDevices();
+#endif
   });
 }
 
@@ -122,7 +128,9 @@ InputBackend::~InputBackend()
   }
 
   XInput::DeInit();
+#ifdef _MSC_VER
   WGInput::DeInit();
+#endif
 }
 
 }  // namespace ciface::Win32

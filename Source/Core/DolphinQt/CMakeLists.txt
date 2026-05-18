@@ -11,17 +11,19 @@ set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg)
 
-if (Qt6_VERSION VERSION_GREATER_EQUAL 6.10.0)
-  # GuiPrivate is needed to #include qplatformnativeinterface.h in MainWindow.cpp with Qt 6.10+.
-  set(NEED_QT_GUI_PRIVATE_COMPONENT ON)
-  find_package(Qt6 REQUIRED COMPONENTS GuiPrivate)
+if(NOT WIN32)
+  if (Qt6_VERSION VERSION_GREATER_EQUAL 6.10.0)
+    # GuiPrivate is needed to #include qplatformnativeinterface.h in MainWindow.cpp with Qt 6.10+.
+    set(NEED_QT_GUI_PRIVATE_COMPONENT ON)
+    find_package(Qt6 REQUIRED COMPONENTS GuiPrivate)
+  endif()
 endif()
 
 message(STATUS "Found Qt version ${Qt6_VERSION}")
 
 set_property(TARGET Qt6::Core PROPERTY INTERFACE_COMPILE_FEATURES "")
 
-add_executable(dolphin-emu
+add_executable(dolphin-emu WIN32
   AboutDialog.cpp
   AboutDialog.h
   CheatSearchFactoryWidget.cpp
@@ -470,10 +472,13 @@ endif()
 if (WIN32)
   target_link_libraries(dolphin-emu
   PRIVATE
-    gdi32.lib
-    shell32.lib
-    dwmapi.lib # Needed to set window decorations for dark theme
+    gdi32
+    shell32
+    dwmapi # Needed to set window decorations for dark theme
   )
+  if(NOT MSVC)
+    target_link_options(dolphin-emu PRIVATE -municode)
+  endif()
 endif()
 
 if (MSVC)
@@ -496,6 +501,8 @@ if (MSVC)
 endif()
 
 if(WIN32)
+  get_property(is_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+
   target_sources(dolphin-emu PRIVATE DolphinQt.manifest DolphinQt.rc)
 
   set_target_properties(dolphin-emu PROPERTIES
@@ -506,60 +513,46 @@ if(WIN32)
 
   # Copy Sys dir
   add_custom_command(TARGET dolphin-emu POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E remove_directory "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/Sys"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/Data/Sys" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/Sys"
+    COMMAND ${CMAKE_COMMAND} -E remove_directory "$<TARGET_FILE_DIR:dolphin-emu>/Sys"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/Data/Sys" "$<TARGET_FILE_DIR:dolphin-emu>/Sys"
   )
 
   # Copy COPYING
   add_custom_command(TARGET dolphin-emu POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/COPYING" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/COPYING"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/COPYING" "$<TARGET_FILE_DIR:dolphin-emu>/COPYING"
   )
 
   # Copy Licenses dir
   add_custom_command(TARGET dolphin-emu POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/LICENSES" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/Licenses"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/LICENSES" "$<TARGET_FILE_DIR:dolphin-emu>/Licenses"
   )
 
   # Copy qt.conf
   add_custom_command(TARGET dolphin-emu POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/qt.conf.win" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/qt.conf"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/qt.conf.win" "$<TARGET_FILE_DIR:dolphin-emu>/qt.conf"
   )
 
-  if (ENABLE_AUTOUPDATE)
+  # Copy Languages directory
+  add_custom_command(TARGET dolphin-emu POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_BINARY_DIR}/Languages" "$<TARGET_FILE_DIR:dolphin-emu>/Languages"
+  )
+
+  if (MSVC)
     # Copy build_info.txt
     add_custom_command(TARGET dolphin-emu POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_BINARY_DIR}/build_info.txt" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/build_info.txt"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_BINARY_DIR}/build_info.txt" "$<TARGET_FILE_DIR:dolphin-emu>/build_info.txt"
     )
   endif()
 
-  # Delegate to Qt's official deployment binary on Windows to copy over the necessary Qt-specific libraries, etc.
-  get_target_property(MOC_EXECUTABLE_LOCATION Qt6::moc IMPORTED_LOCATION)
-  get_filename_component(QT_BINARY_DIRECTORY "${MOC_EXECUTABLE_LOCATION}" DIRECTORY)
-  find_program(WINDEPLOYQT_EXE windeployqt HINTS "${QT_BINARY_DIRECTORY}")
-
-  # Note: We set the PATH for the duration of this command so that the
-  #       deployment application is able to locate the Qt libraries to copy.
-  #       if the necessary paths aren't already set beforehand.
-  #
-  #       For example, consider a hypothetical emulation project named Orca.
-  #       Orca supplies its own version of Qt instead of having developers actually
-  #       install the officially supported Qt libraries -- a method that would make
-  #       wrangling around with Qt through CMake much nicer and lessen the external
-  #       library maintenance burden of the project, but alas.
-  #
-  #       In this case, as Qt is not installed through the official binary, this also
-  #       means proper path variables will not be set up, thus the need to ensure they're
-  #       always set up.
-  #
   add_custom_command(TARGET dolphin-emu POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E env PATH="${QT_BINARY_DIRECTORY}"
-            "${WINDEPLOYQT_EXE}" --libdir="${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
-                                 --plugindir="${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/QtPlugins"
-                                 $<IF:$<CONFIG:Debug>,--debug,--release>
+    COMMAND "${WINDEPLOYQT_EXECUTABLE}" --libdir="$<TARGET_FILE_DIR:dolphin-emu>"
+                                 --plugindir="$<TARGET_FILE_DIR:dolphin-emu>/QtPlugins"
+                                 $<$<CXX_COMPILER_ID:MSVC>:$<IF:$<CONFIG:Debug>,--debug,--release>>
                                  --no-translations
                                  --no-compiler-runtime
                                  --no-system-d3d-compiler
                                  --no-opengl-sw
+                                 --verbose 0
                                  "$<TARGET_FILE:dolphin-emu>"
   )
 endif()
@@ -583,7 +576,7 @@ if(GETTEXT_MSGFMT_EXECUTABLE)
   foreach(po ${LINGUAS})
     get_filename_component(lang ${po} NAME_WE)
     if(WIN32)
-      set(mo_dir ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/Languages)
+      set(mo_dir ${CMAKE_CURRENT_BINARY_DIR}/Languages)
       set(mo ${mo_dir}/${lang}.mo)
     else()
       set(mo_dir ${CMAKE_CURRENT_BINARY_DIR}/${lang})
@@ -719,7 +712,4 @@ endif()
 if(USE_RETRO_ACHIEVEMENTS)
   target_link_libraries(dolphin-emu PRIVATE rcheevos)
   target_compile_definitions(dolphin-emu PRIVATE -DUSE_RETRO_ACHIEVEMENTS)
-  if(RC_CLIENT_SUPPORTS_RAINTEGRATION)
-    target_compile_definitions(dolphin-emu PRIVATE -DRC_CLIENT_SUPPORTS_RAINTEGRATION)
-  endif()
 endif()
